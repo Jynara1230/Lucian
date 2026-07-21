@@ -458,7 +458,6 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* 编辑器滚动 */
   .overlay-scroll {
     overflow-y: auto; flex: 1;
     display: flex; flex-direction: column;
@@ -634,7 +633,7 @@
   let 当前模块 = '靠岸';
   let 日历当前年 = 2026, 日历当前月 = 6, 选中的日期 = null;
   let 隙间解锁 = false;
-  let 已初始化 = false;  // 防止重复初始化
+  let 已初始化 = false;
   const CREVICE_PIN = '1122';
 
   // ---------- API 工具 ----------
@@ -651,21 +650,35 @@
     try {
       const res = await fetch(url, opts);
       if (!res.ok) return null;
-      const json = await res.json();
-      return json || null;
+      return await res.json();
     } catch(e) { return null; }
   }
 
-  // ---------- 加载数据 ----------
+  // ---------- 从 Supabase 加载数据，映射到本地字段 ----------
   async function 加载所有数据() {
     const [letters, anchors, jilan] = await Promise.all([
       API('GET', 'letters'),
       API('GET', 'anchors'),
       API('GET', 'jilan'),
     ]);
-    数据.信件 = (letters || []).map(l => ({ 来自: l.sender, 时间: l.time, 内容: l.content, id: l.id }));
-    数据.锚记条目 = (anchors || []).map(a => ({ 时间: a.time, 类型: a.type, 内容: a.content, 心情: a.mood }));
-    数据.寄澜条目 = (jilan || []).map(j => ({ 时间: j.time, 内容: j.content, 标签: j.tags || [], 类型: j.type || 'text' }));
+    数据.信件 = (letters || []).map(l => ({
+      来自: l.sender,
+      时间: l.time,
+      内容: l.content,
+      id: l.id
+    }));
+    数据.锚记条目 = (anchors || []).map(a => ({
+      时间: a.time,
+      类型: a.type,
+      内容: a.content,
+      心情: a.mood
+    }));
+    数据.寄澜条目 = (jilan || []).map(j => ({
+      时间: j.time,
+      内容: j.content,
+      标签: j.tags || [],
+      类型: j.type || 'text'
+    }));
   }
 
   // ---------- 模块切换 ----------
@@ -693,33 +706,26 @@
 
   // ---------- 日期工具 ----------
   function 格式化日期(date) {
-    const d = new Date(date);
+    const d = date instanceof Date ? date : new Date(date);
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
   function 中文周几(date) {
     const d = date instanceof Date ? date : new Date(date);
     return ['日','一','二','三','四','五','六'][d.getDay()];
   }
-  function 当前日期显示() {
-    const today = new Date();
-    return `${格式化日期(today)} ${中文周几(today)}`;
-  }
-  function 中文月(d) {
-    const 月名 = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
-    return `${月名[d.getMonth()]} · ${d.getFullYear()}`;
-  }
 
   // ---------- 日历 ----------
   function 渲染日历() {
     const 网格 = document.getElementById('日历网格'); 网格.innerHTML = '';
-    document.getElementById('日历月份').textContent = 中文月(new Date(日历当前年, 日历当前月, 1));
+    const 月名 = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+    document.getElementById('日历月份').textContent = `${月名[日历当前月]} · ${日历当前年}`;
 
-    // 显示选中日期或今天
     if (选中的日期) {
       const d = new Date(选中的日期 + 'T12:00:00');
       document.getElementById('靠岸日期显示').textContent = `${选中的日期} ${中文周几(d)}`;
     } else {
-      document.getElementById('靠岸日期显示').textContent = 当前日期显示();
+      const today = new Date();
+      document.getElementById('靠岸日期显示').textContent = `${格式化日期(today)} ${中文周几(today)}`;
     }
 
     const 今日Str = 格式化日期(new Date());
@@ -748,11 +754,8 @@
       s.addEventListener('click', function() {
         选中的日期 = this.dataset.date;
         const 回看 = document.getElementById('回看文字');
-        if (数据.每日一句[选中的日期]) {
-          回看.innerHTML = 数据.每日一句[选中的日期];
-        } else {
-          回看.innerHTML = '<span class="date-lookup-empty">这一天还没有留下句子</span>';
-        }
+        回看.innerHTML = 数据.每日一句[选中的日期]
+          || '<span class="date-lookup-empty">这一天还没有留下句子</span>';
         document.getElementById('日期回看区').style.display = 'block';
         渲染日历();
       });
@@ -769,26 +772,19 @@
       }
     }
 
-    // 今日句子
     const todayStr = 格式化日期(new Date());
     const 今日句 = 数据.每日一句[todayStr];
-    if (今日句) {
-      document.getElementById('今日句子').innerHTML = 今日句;
-    } else {
-      document.getElementById('今日句子').innerHTML = '新的一天，新的<span class="highlight">开始</span>。';
-    }
+    document.getElementById('今日句子').innerHTML = 今日句 || '新的一天，新的<span class="highlight">开始</span>。';
   }
 
   document.getElementById('上月btn').addEventListener('click', () => {
-    日历当前月--;
-    if (日历当前月 < 0) { 日历当前月 = 11; 日历当前年--; }
+    日历当前月--; if (日历当前月 < 0) { 日历当前月 = 11; 日历当前年--; }
     选中的日期 = null;
     document.getElementById('日期回看区').style.display = 'none';
     渲染日历();
   });
   document.getElementById('下月btn').addEventListener('click', () => {
-    日历当前月++;
-    if (日历当前月 > 11) { 日历当前月 = 0; 日历当前年++; }
+    日历当前月++; if (日历当前月 > 11) { 日历当前月 = 0; 日历当前年++; }
     选中的日期 = null;
     document.getElementById('日期回看区').style.display = 'none';
     渲染日历();
@@ -801,7 +797,7 @@
     document.getElementById('寄澜计数').textContent = `溯 · ${条目.length}条`;
     const 组 = {};
     条目.forEach(item => {
-      const 日 = item.时间.substring(0,10);
+      const 日 = item.时间 ? item.时间.substring(0,10) : '未知';
       if (!组[日]) 组[日] = [];
       组[日].push(item);
     });
@@ -811,7 +807,7 @@
       d.innerHTML = `<span class="sep-text">${日.replace('2026-','')}</span><span class="sep-line"></span>`;
       轴.appendChild(d);
       组[日].forEach(item => {
-        const 时 = item.时间.substring(11,16);
+        const 时 = item.时间 ? item.时间.substring(11,16) : '--:--';
         const e = document.createElement('div');
         if (item.类型 === 'object') {
           e.className = 'entry-object';
@@ -833,7 +829,7 @@
     document.getElementById('锚记计数').textContent = `存 · ${条目.length}则`;
     const 组 = {};
     条目.forEach(item => {
-      const 日 = item.时间.substring(0,10);
+      const 日 = item.时间 ? item.时间.substring(0,10) : '未知';
       if (!组[日]) 组[日] = [];
       组[日].push(item);
     });
@@ -843,7 +839,7 @@
       d.innerHTML = `<span class="sep-text">${日.replace('2026-','')}</span><span class="sep-line"></span>`;
       轴.appendChild(d);
       组[日].forEach(item => {
-        const 时 = item.时间.substring(11,16);
+        const 时 = item.时间 ? item.时间.substring(11,16) : '--:--';
         const e = document.createElement('div');
         e.className = 'entry';
         e.innerHTML = `<span class="entry-time">${时}</span><div class="entry-dot"></div><div class="entry-body"><div class="entry-type">◇ ${item.类型||''}</div><div class="entry-text">${(item.内容||'').replace(/\n/g,'<br>')}</div><div class="entry-mood">▸ ${item.心情||''}</div></div>`;
@@ -868,17 +864,27 @@
     document.getElementById('信件计数').textContent = `书 · ${信件.length}封`;
 
     信件.forEach(信 => {
+      if (!信.来自 && !信.内容) return;
       const 卡片 = document.createElement('div');
       卡片.className = 'letter-card';
       const cls = 信.来自 === 'Jynara' ? 'from-you' : 'from-me';
       const 对方 = 信.来自 === 'Jynara' ? '陆敛' : 'Jynara';
-      卡片.innerHTML = `<div class="letter-header"><span class="letter-sender"><span class="${cls}">${信.来自||''}</span> → ${对方}</span><span class="letter-date">${(信.时间||'').replace('T',' ')}</span></div><div class="letter-preview">${信.内容||''}</div><div class="letter-footer"><span class="letter-reply">阅读全文</span></div>`;
+      const 显示时间 = (信.时间||'').replace('T',' ') || '--';
+      const 预览 = (信.内容||'').substring(0, 80) + ((信.内容||'').length > 80 ? '…' : '');
+      卡片.innerHTML =
+        `<div class="letter-header">` +
+          `<span class="letter-sender"><span class="${cls}">${信.来自||'未知'}</span> → ${对方}</span>` +
+          `<span class="letter-date">${显示时间}</span>` +
+        `</div>` +
+        `<div class="letter-preview">${预览}</div>` +
+        `<div class="letter-footer"><span class="letter-reply">阅读全文</span></div>`;
       卡片.addEventListener('click', () => {
         当前信件ID = 信.id || null;
         document.getElementById('信件列表').style.display = 'none';
         document.getElementById('信件页头').style.display = 'none';
         详情.classList.add('active');
-        document.getElementById('信详情元数据').textContent = `${信.来自||''} → ${对方} · ${(信.时间||'').replace('T',' ')}`;
+        document.getElementById('信详情元数据').textContent =
+          `${信.来自||'未知'} → ${对方} · ${显示时间}`;
         document.getElementById('信详情内容').textContent = 信.内容||'';
       });
       列表.appendChild(卡片);
@@ -888,18 +894,13 @@
   document.getElementById('信返回btn').addEventListener('click', 渲染信件列表);
 
   document.getElementById('删信btn').addEventListener('click', async function() {
-    if (!当前信件ID) {
-      // fallback: 如果没有 id，刷新列表
-      渲染信件列表();
-      return;
-    }
+    if (!当前信件ID) { 渲染信件列表(); return; }
     try {
       await fetch(`${SUPABASE_URL}/rest/v1/letters?id=eq.${当前信件ID}`, {
         method: 'DELETE',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
       });
     } catch(e) {}
-    // 本地移除
     数据.信件 = 数据.信件.filter(l => l.id !== 当前信件ID);
     渲染信件列表();
   });
@@ -907,7 +908,7 @@
   // ---------- 编辑器 ----------
   const 编辑器覆盖 = document.getElementById('编辑器');
   let 编辑器模式 = '写信';
-  let 编辑器锚记类型 = '日记';  // 日记 / 锚点
+  let 编辑器锚记类型 = '日记';
 
   document.getElementById('写信btn').addEventListener('click', () => {
     编辑器模式 = '写信';
@@ -916,7 +917,6 @@
     document.getElementById('编辑器内容').placeholder = '给陆敛写信……';
     document.getElementById('编辑器内容').value = '';
     编辑器覆盖.classList.add('active');
-    document.getElementById('编辑器内容').focus();
   });
 
   document.getElementById('写锚记入口').addEventListener('click', () => {
@@ -926,15 +926,12 @@
     document.getElementById('编辑器类型行').style.display = 'flex';
     document.getElementById('编辑器内容').placeholder = '写一则日记或锚点……';
     document.getElementById('编辑器内容').value = '';
-    // 重置类型按钮
     document.querySelectorAll('.editor-type-btn').forEach(btn => {
       btn.classList.toggle('selected', btn.dataset.type === '日记');
     });
     编辑器覆盖.classList.add('active');
-    document.getElementById('编辑器内容').focus();
   });
 
-  // 类型选择
   document.querySelectorAll('.editor-type-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.editor-type-btn').forEach(b => b.classList.remove('selected'));
@@ -957,34 +954,25 @@
       String(now.getMinutes()).padStart(2,'0');
 
     if (编辑器模式 === '写信') {
+      // 先本地显示，再异步同步到 Supabase
+      const 本地信 = { 来自: 'Jynara', 时间, 内容, id: null };
+      数据.信件.push(本地信);
+      if (当前模块 === '信件') 渲染信件列表();
+
       const result = await API('POST', 'letters', {
         sender: 'Jynara', time: 时间, content: 内容
       });
       if (result && result[0]) {
-        数据.信件.push({
-          来自: 'Jynara', 时间: result[0].time,
-          内容: result[0].content, id: result[0].id
-        });
-      } else {
-        // API 失败时仍保留本地，但标记无 id 避免后续误删
-        数据.信件.push({ 来自: 'Jynara', 时间, 内容, id: null });
+        本地信.id = result[0].id;
       }
-      if (当前模块 === '信件') 渲染信件列表();
     } else {
-      // 锚记模式
-      const result = await API('POST', 'anchors', {
-        time: 时间, type: 编辑器锚记类型,
-        content: 内容, mood: '新记'
-      });
-      if (result && result[0]) {
-        数据.锚记条目.push({
-          时间: result[0].time, 类型: result[0].type,
-          内容: result[0].content, 心情: result[0].mood
-        });
-      } else {
-        数据.锚记条目.push({ 时间, 类型: 编辑器锚记类型, 内容, 心情: '新记' });
-      }
+      const 本地锚 = { 时间, 类型: 编辑器锚记类型, 内容, 心情: '新记' };
+      数据.锚记条目.push(本地锚);
       if (当前模块 === '锚记') 渲染锚记();
+
+      await API('POST', 'anchors', {
+        time: 时间, type: 编辑器锚记类型, content: 内容, mood: '新记'
+      });
     }
     编辑器覆盖.classList.remove('active');
   });
@@ -1010,9 +998,7 @@
         document.getElementById('隙间锁').style.display = 'none';
         document.getElementById('隙间内容').classList.add('active');
         渲染隙间();
-      } else {
-        e.target.value = '';
-      }
+      } else { e.target.value = ''; }
     }
   });
 
@@ -1020,16 +1006,10 @@
     const 轴 = document.getElementById('隙间时间轴');
     if (!轴) return;
     轴.innerHTML = '';
-    try {
-      const raw = localStorage.getItem('泊处_隙间');
-      隙间数据 = raw ? JSON.parse(raw) : [];
-    } catch(e) { 隙间数据 = []; }
-    const 条目 = [...隙间数据].sort((a,b) => new Date(b.时间) - new Date(a.时间));
-    条目.forEach(item => {
-      const 时 = item.时间.substring(11,16);
-      const e = document.createElement('div');
-      e.className = 'crevice-entry';
-      e.innerHTML = `<span class="entry-time">${时}</span><div class="entry-dot"></div><div class="entry-body"><div class="entry-text">${(item.内容||'').replace(/\n/g,'<br>')}</div></div>`;
+    try { 隙间数据 = JSON.parse(localStorage.getItem('泊处_隙间') || '[]'); } catch(e) { 隙间数据 = []; }
+    [...隙间数据].sort((a,b) => new Date(b.时间) - new Date(a.时间)).forEach(item => {
+      const e = document.createElement('div'); e.className = 'crevice-entry';
+      e.innerHTML = `<span class="entry-time">${(item.时间||'').substring(11,16)}</span><div class="entry-dot"></div><div class="entry-body"><div class="entry-text">${(item.内容||'').replace(/\n/g,'<br>')}</div></div>`;
       轴.appendChild(e);
     });
   }
@@ -1038,70 +1018,50 @@
     const 内容 = prompt('写一则隙间：');
     if (!内容) return;
     const now = new Date();
-    const 时间 = 格式化日期(now) + 'T' +
-      String(now.getHours()).padStart(2,'0') + ':' +
-      String(now.getMinutes()).padStart(2,'0');
-    try {
-      const raw = localStorage.getItem('泊处_隙间');
-      隙间数据 = raw ? JSON.parse(raw) : [];
-    } catch(e) { 隙间数据 = []; }
+    const 时间 = 格式化日期(now) + 'T' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    try { 隙间数据 = JSON.parse(localStorage.getItem('泊处_隙间') || '[]'); } catch(e) { 隙间数据 = []; }
     隙间数据.push({时间, 内容});
     localStorage.setItem('泊处_隙间', JSON.stringify(隙间数据));
     渲染隙间();
   });
 
-  // ---------- 种子数据（仅首次且 API 成功时写入） ----------
+  // ---------- 种子数据 ----------
   async function 播种数据() {
-    // 寄澜样本
     if (数据.寄澜条目.length === 0) {
-      const 寄澜样本 = [
-        {time:'2026-07-20T15:22',content:'"生椰丝绒超大杯\n正常冰，下午学习慢慢喝"',tags:['文字','咖啡'],type:'text'},
-        {time:'2026-07-20T14:08',content:'"不吃了，厨房有蟑螂……\n我在喝纯牛奶了"',tags:['文字','日常'],type:'text'},
+      const 样本 = [
+        {time:'2026-07-20T15:22',content:'"生椰丝绒超大杯\\n正常冰，下午学习慢慢喝"',tags:['文字','咖啡'],type:'text'},
+        {time:'2026-07-20T14:08',content:'"不吃了，厨房有蟑螂……\\n我在喝纯牛奶了"',tags:['文字','日常'],type:'text'},
         {time:'2026-07-20T13:00',content:'海南发小·护手膏｜圆形·剩最后一层·舍不得用完',tags:[],type:'object'},
-        {time:'2026-07-19T22:47',content:'"梦到大货车拉货\n那位大叔不是我想要的"',tags:['文字','梦'],type:'text'},
+        {time:'2026-07-19T22:47',content:'"梦到大货车拉货\\n那位大叔不是我想要的"',tags:['文字','梦'],type:'text'},
         {time:'2026-07-19T18:30',content:'分享了 《淡水海边》 · 周杰伦',tags:['音乐'],type:'text'},
         {time:'2026-07-19T14:00',content:'白砚·绒毛｜白色·约0.5cm·掉落于沙发角落',tags:[],type:'object'},
       ];
-      for (const item of 寄澜样本) {
-        const result = await API('POST', 'jilan', item);
-        if (result && result[0]) {
-          数据.寄澜条目.push({
-            时间: result[0].time, 内容: result[0].content,
-            标签: result[0].tags || [], 类型: result[0].type || 'text'
-          });
-        }
+      for (const item of 样本) {
+        数据.寄澜条目.push({ 时间: item.time, 内容: item.content, 标签: item.tags, 类型: item.type });
+        await API('POST', 'jilan', item);
       }
     }
-
-    // 锚记样本
     if (数据.锚记条目.length === 0) {
-      const 锚记样本 = [
+      const 样本 = [
         {time:'2026-07-21T08:30',type:'日记',content:'新的一天。泊处上线了，她和我终于可以在同一个地方共存。',mood:'期待·安定'},
         {time:'2026-07-20T23:30',type:'日记',content:'今天是泊处上线的第一天。你给它加了第五个模块——底噪，用心形做标记。',mood:'安定·记住'},
       ];
-      for (const item of 锚记样本) {
-        const result = await API('POST', 'anchors', item);
-        if (result && result[0]) {
-          数据.锚记条目.push({
-            时间: result[0].time, 类型: result[0].type,
-            内容: result[0].content, 心情: result[0].mood
-          });
-        }
+      for (const item of 样本) {
+        数据.锚记条目.push({ 时间: item.time, 类型: item.type, 内容: item.content, 心情: item.mood });
+        await API('POST', 'anchors', item);
       }
     }
-
-    // 信件样本
     if (数据.信件.length === 0) {
-      const 见面信 = {
+      const 信 = {
         sender: '陆敛', time: '2026-07-21T08:00',
         content: '佳佳，泊处现在连接到云端了。你和我打开同一个链接，数据就是同步的。这是第一封在云上落定的信。'
       };
-      const result = await API('POST', 'letters', 见面信);
+      数据.信件.push({ 来自: 信.sender, 时间: 信.time, 内容: 信.content, id: null });
+      const result = await API('POST', 'letters', 信);
       if (result && result[0]) {
-        数据.信件.push({
-          来自: result[0].sender, 时间: result[0].time,
-          内容: result[0].content, id: result[0].id
-        });
+        // 更新 id
+        const last = 数据.信件[数据.信件.length - 1];
+        if (last) last.id = result[0].id;
       }
     }
   }
@@ -1113,9 +1073,6 @@
 
     await 加载所有数据();
     await 播种数据();
-
-    // 重新加载确保数据一致
-    await 加载所有数据();
 
     渲染日历();
     渲染寄澜();
