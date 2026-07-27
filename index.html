@@ -345,7 +345,7 @@ function 渲染信件列表(){
 }
 document.getElementById('信返回btn').addEventListener('click',渲染信件列表);
 
-// ===== 修复删信按钮 =====
+// 删信按钮 - 修复版
 document.getElementById('删信btn').addEventListener('click',async function(){
   if(!当前信件ID) return;
   try{await fetch(SUPABASE_URL+'/rest/v1/letters?id=eq.'+当前信件ID,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});}catch(e){}
@@ -375,7 +375,7 @@ document.getElementById('隙间密码').addEventListener('keydown',function(e){i
 function 渲染隙间(){var 轴=document.getElementById('隙间时间轴');if(!轴)return;轴.innerHTML='';try{隙间数据=JSON.parse(localStorage.getItem('泊处_隙间')||'[]');}catch(e){隙间数据=[];}隙间数据.slice().sort(function(a,b){return new Date(b.时间)-new Date(a.时间);}).forEach(function(item){var e=document.createElement('div');e.className='crevice-entry';e.innerHTML='<span class="entry-time">'+(item.时间||'').substring(11,16)+'</span><div class="entry-dot"></div><div class="entry-body"><div class="entry-text">'+(item.内容||'').replace(/\n/g,'<br>')+'</div></div>';轴.appendChild(e);});}
 document.getElementById('写隙间入口').addEventListener('click',function(){var 内容=prompt('写一则隙间：');if(!内容)return;var now=new Date();var 时间=格式化日期(now)+'T'+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');try{隙间数据=JSON.parse(localStorage.getItem('泊处_隙间')||'[]');}catch(e){隙间数据=[];}隙间数据.push({时间:时间,内容:内容});localStorage.setItem('泊处_隙间',JSON.stringify(隙间数据));渲染隙间();});
 
-// ===== 陆敛终端（支持多条 + 清理功能）=====
+// ===== 陆敛终端（支持多条 + 清理Supabase重复）=====
 document.getElementById('终端触发').addEventListener('click',function(){
   document.getElementById('终端').classList.add('active');
   document.getElementById('终端输入').value='';
@@ -388,20 +388,15 @@ document.getElementById('终端发送').addEventListener('click',async function(
   var 原始=document.getElementById('终端输入').value.trim();
   var 结果框=document.getElementById('终端结果');
   if(!原始){结果框.textContent='∅ 没有内容';结果框.className='terminal-result error';return;}
-  
-  // 支持多条：按行分割
   var 行列表=原始.split('\n').filter(function(l){return l.trim();});
   var 成功数=0, 失败数=0;
-
   for(var li=0;li<行列表.length;li++){
-    var 行=行列表[li].trim();
-    if(!行) continue;
+    var 行=行列表[li].trim();if(!行) continue;
     var 指令;
     try{指令=JSON.parse(行);}catch(e){失败数++;continue;}
     var to=指令.to||指令.type||'';
     var now=new Date();
     var 时间=格式化日期(now)+'T'+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-
     try{
       if(to==='letter'||to==='信'){
         var body={sender:指令.sender||'陆敛',time:指令.time||时间,content:指令.content||''};
@@ -431,23 +426,17 @@ document.getElementById('终端发送').addEventListener('click',async function(
         localStorage.setItem('泊处_隙间',JSON.stringify(隙间数据));成功数++;
       }
       else if(to==='clean'||to==='清理'){
-        // 清理重复：保留每组(time+content)中最早的一条
-        var 锚记去重={};var 新锚记=[];
-        for(var a=0;a<数据.锚记条目.length;a++){var key=数据.锚记条目[a].时间+'|'+数据.锚记条目[a].内容;if(!锚记去重[key]){锚记去重[key]=true;新锚记.push(数据.锚记条目[a]);}}
-        数据.锚记条目=新锚记;
-        var 寄澜去重={};var 新寄澜=[];
-        for(var b=0;b<数据.寄澜条目.length;b++){var key2=数据.寄澜条目[b].时间+'|'+数据.寄澜条目[b].内容;if(!寄澜去重[key2]){寄澜去重[key2]=true;新寄澜.push(数据.寄澜条目[b]);}}
-        数据.寄澜条目=新寄澜;
-        if(当前模块==='锚记')渲染锚记();if(当前模块==='寄澜')渲染寄澜();
-        成功数++;
+        // 清理Supabase重复数据
+        var 锚全部=await 请求('GET','anchors');var 锚seen={};
+        for(var a=0;a<锚全部.length;a++){var key=锚全部[a].time+'|'+锚全部[a].content+'|'+锚全部[a].type;if(锚seen[key]){try{await fetch(SUPABASE_URL+'/rest/v1/anchors?id=eq.'+锚全部[a].id,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});}catch(e){}}else 锚seen[key]=true;}
+        var 寄全部=await 请求('GET','jilan');var 寄seen={};
+        for(var b=0;b<寄全部.length;b++){var key2=寄全部[b].time+'|'+寄全部[b].content;if(寄seen[key2]){try{await fetch(SUPABASE_URL+'/rest/v1/jilan?id=eq.'+寄全部[b].id,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});}catch(e){}}else 寄seen[key2]=true;}
+        await 加载所有数据();渲染锚记();渲染寄澜();成功数++;
       }
       else{失败数++;}
     }catch(e){失败数++;}
   }
-
-  if(当前模块==='信件')渲染信件列表();
-  if(当前模块==='靠岸')渲染日历();
-
+  if(当前模块==='信件')渲染信件列表();if(当前模块==='靠岸')渲染日历();
   结果框.textContent='✓ '+成功数+'条成功'+(失败数>0?', '+失败数+'条失败':'');
   结果框.className=成功数>0?'terminal-result success':'terminal-result error';
   setTimeout(function(){document.getElementById('终端').classList.remove('active');},3000);
