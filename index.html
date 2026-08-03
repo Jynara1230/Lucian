@@ -174,7 +174,7 @@
   <div class="star star-1"></div><div class="star star-2"></div><div class="star star-3"></div><div class="star star-4"></div><div class="star star-5"></div><div class="star star-6"></div><div class="star star-7"></div><div class="star star-8"></div><div class="star star-9"></div><div class="star star-10"></div><div class="star star-11"></div><div class="star star-12"></div>
   <div class="content">
     <div class="module active" id="module-靠岸">
-      <div class="page-header"><span class="page-title">靠岸</span><span class="page-sub" id="靠岸日期显示">2026.07.22 三</span></div>
+      <div class="page-header"><span class="page-title">靠岸</span><span class="page-sub" id="靠岸日期显示">.07.22 三</span></div>
       <div class="divider-light"></div>
       <div class="daily-label">✦ 今日收信</div>
       <div class="sentence-text" id="今日句子">新的一天，新的<span class="highlight">开始</span>。</div>
@@ -234,7 +234,7 @@ const SUPABASE_KEY='sb_publishable_8pQHvISu_uGAXHf7xfltcA_5a2Yq0sS';
 let 数据={每日一句:{},寄澜条目:[],锚记条目:[],信件:[]};
 let 隙间数据=[];
 let 当前模块='靠岸';
-let 日历当前年=2026,日历当前月=6,选中的日期=null;
+let 日历当前年=new Date().getFullYear(),日历当前月=new Date().getMonth(),选中的日期=null;
 let 隙间解锁=false;
 const CREVICE_PIN='1122';
 
